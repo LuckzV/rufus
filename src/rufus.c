@@ -48,6 +48,12 @@
 
 #include "ui.h"
 #include "vhd.h"
+#include "darkmode.h"
+#include "usb_health_predictor.h"
+#include "blockchain_verifier.h"
+#include "quantum_encryption.h"
+#include "usb_dna_fingerprint.h"
+#include "realtime_monitor.h"
 #include "wue.h"
 #include "drive.h"
 #include "cregex.h"
@@ -2793,6 +2799,12 @@ static INT_PTR CALLBACK MainCallback(HWND hDlg, UINT message, WPARAM wParam, LPA
 
 	case WM_INITDIALOG:
 		InitAndSetDarkModeForMainDlg(hDlg);
+		
+		// Initialize experimental features
+		InitUSBHealthPredictor();
+		InitBlockchainVerifier(BLOCKCHAIN_TESTNET, NULL);
+		InitQuantumEncryption(QUANTUM_ALGO_CRYSTALS_KYBER);
+		
 		// Make sure fScale is set before the first call to apply localization, so that move/resize scale appropriately
 		hDC = GetDC(hDlg);
 		fScale = GetDeviceCaps(hDC, LOGPIXELSX) / 96.0f;
@@ -2887,6 +2899,13 @@ static INT_PTR CALLBACK MainCallback(HWND hDlg, UINT message, WPARAM wParam, LPA
 		return (INT_PTR)GetSysColorBrush(COLOR_BTNFACE);
 
 	case WM_DESTROY:
+		// Cleanup experimental features
+		CleanupUSBHealthPredictor();
+		CleanupBlockchainVerifier();
+		CleanupQuantumEncryption();
+		CleanupUSBDNAFingerprinting();
+		CleanupRealTimeMonitor();
+		
 		safe_destroy_imagelist_from_toolbar(hSaveToolbar);
 		safe_destroy_imagelist_from_toolbar(hHashToolbar);
 		safe_destroy_imagelist_from_toolbar(hMultiToolbar);
