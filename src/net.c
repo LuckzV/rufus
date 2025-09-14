@@ -492,6 +492,8 @@ static void CheckForDBXUpdates(int verbose)
 			continue;
 		t.tm_year -= 1900;
 		t.tm_mon -= 1;
+		// Fix timezone issue: ensure we're working with UTC time
+		t.tm_isdst = 0;  // Not in daylight saving time
 		timestamp = _mkgmtime64(&t);
 		vuprintf("DBX update timestamp is %" PRId64, timestamp);
 		static_sprintf(reg_name, "DBXTimestamp_%s", efi_archname[i + 1]);

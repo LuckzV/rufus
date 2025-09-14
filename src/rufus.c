@@ -189,6 +189,7 @@ static void SetAllowedFileSystems(void)
 		allowed_filesystem[FS_FAT32] = TRUE;
 		break;
 	case BT_IMAGE:
+		// Always allow NTFS unless we have a specific GRUB image that doesn't support it
 		if ((image_path == NULL) || !HAS_NTFSLESS_GRUB(img_report))
 			allowed_filesystem[FS_NTFS] = TRUE;
 		// Don't allow anything besides NTFS if the image is not compatible
@@ -204,6 +205,10 @@ static void SetAllowedFileSystems(void)
 				allowed_filesystem[FS_FAT16] = TRUE;
 				allowed_filesystem[FS_FAT32] = TRUE;
 			}
+		}
+		// Ensure at least one filesystem is always available
+		if (!allowed_filesystem[FS_NTFS] && !allowed_filesystem[FS_FAT32] && !allowed_filesystem[FS_FAT16]) {
+			allowed_filesystem[FS_NTFS] = TRUE;  // Default fallback
 		}
 		break;
 	case BT_GRUB2:
@@ -2344,6 +2349,15 @@ static INT_PTR CALLBACK MainCallback(HWND hDlg, UINT message, WPARAM wParam, LPA
 		case IDC_ABOUT:
 			CreateAboutBox();
 			break;
+		case IDC_WIZARD:
+			CreateWizardDialog();
+			break;
+		case IDC_PRESETS:
+			CreatePresetsDialog();
+			break;
+		case IDC_PROGRESS_DETAILS:
+			CreateProgressDetailDialog();
+			break;
 		case IDC_LOG:
 			// Place the log Window to the right (or left for RTL) of our dialog on first display
 			if (first_log_display) {
@@ -3168,7 +3182,7 @@ static INT_PTR CALLBACK MainCallback(HWND hDlg, UINT message, WPARAM wParam, LPA
 							}
 							if (i == ARRAYSIZE(ps_cmd)) {
 								uprintf("\r\nWARNING: 'Controlled Folder Access' appears to be enabled on this system");
-								uprintf("You may need to disable this feature, or add an exception, for Rufus to to work...\n");
+								uprintf("You may need to disable this feature, or add an exception, for Rufus to work...\n");
 							}
 						}
 						break;

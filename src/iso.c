@@ -133,7 +133,7 @@ static char symlinked_syslinux[MAX_PATH], *md5sum_data = NULL, *md5sum_pos = NUL
 // Ensure filenames do not contain invalid FAT32 or NTFS characters
 static __inline char* sanitize_filename(char* filename, BOOL* is_identical)
 {
-	size_t i, j;
+	size_t i, j, len;
 	char* ret = NULL;
 	char unauthorized[] = { '*', '?', '<', '>', ':', '|' };
 
@@ -144,9 +144,18 @@ static __inline char* sanitize_filename(char* filename, BOOL* is_identical)
 		return NULL;
 	}
 
+	len = safe_strlen(ret);
+	// Prevent buffer overflow with very long paths
+	if (len > MAX_PATH - 1) {
+		uprintf("WARNING: Path too long, truncating: %s", filename);
+		ret[MAX_PATH - 1] = '\0';
+		len = MAX_PATH - 1;
+		*is_identical = FALSE;
+	}
+
 	// Must start after the drive part (D:\...) so that we don't eliminate the first column
-	for (i = 2; i<safe_strlen(ret); i++) {
-		for (j = 0; j<sizeof(unauthorized); j++) {
+	for (i = 2; i < len; i++) {
+		for (j = 0; j < sizeof(unauthorized); j++) {
 			if (ret[i] == unauthorized[j]) {
 				ret[i] = '_';
 				*is_identical = FALSE;
@@ -1933,7 +1942,15 @@ BOOL DumpFatDir(const char* path, int32_t cluster)
 		dirpos.cluster = libfat_dumpdir(lf_fs, &dirpos, &diritem);
 		if (dirpos.cluster >= 0) {
 			name = wchar_to_utf8(diritem.name);
-			target = malloc(strlen(path) + safe_strlen(name) + 2);
+			size_t path_len = strlen(path);
+			size_t name_len = safe_strlen(name);
+			// Prevent buffer overflow with very long paths
+			if (path_len + name_len + 2 > MAX_PATH - 1) {
+				uprintf("WARNING: Path too long, skipping: %s\\%s", path, name);
+				free(name);
+				continue;
+			}
+			target = malloc(path_len + name_len + 2);
 			if ((name == NULL) || (target == NULL)) {
 				uprintf("Could not allocate buffer");
 				goto out;

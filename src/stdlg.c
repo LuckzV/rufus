@@ -455,11 +455,250 @@ INT_PTR CALLBACK AboutCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
 	return (INT_PTR)FALSE;
 }
 
+/*
+ * Wizard dialog callback
+ */
+INT_PTR CALLBACK WizardCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	HWND hDevice, hFilesystem, hTarget, hIsoPath;
+	char iso_path[MAX_PATH] = { 0 };
+	int device_index, fs_index, target_index;
+	
+	switch (message) {
+	case WM_INITDIALOG:
+		SetDarkModeForDlg(hDlg);
+		apply_localization(IDD_WIZARD, hDlg);
+		SetTitleBarIcon(hDlg);
+		CenterDialog(hDlg, NULL);
+		
+		// Initialize device list
+		hDevice = GetDlgItem(hDlg, IDC_WIZARD_DEVICE);
+		PopulateDeviceList(hDevice);
+		
+		// Initialize filesystem options
+		hFilesystem = GetDlgItem(hDlg, IDC_WIZARD_FILESYSTEM);
+		ComboBox_AddString(hFilesystem, "FAT32");
+		ComboBox_AddString(hFilesystem, "NTFS");
+		ComboBox_AddString(hFilesystem, "exFAT");
+		ComboBox_SetCurSel(hFilesystem, 1); // Default to NTFS
+		
+		// Initialize target options
+		hTarget = GetDlgItem(hDlg, IDC_WIZARD_TARGET);
+		ComboBox_AddString(hTarget, "BIOS");
+		ComboBox_AddString(hTarget, "UEFI");
+		ComboBox_AddString(hTarget, "BIOS + UEFI");
+		ComboBox_SetCurSel(hTarget, 2); // Default to BIOS + UEFI
+		
+		SetDarkModeForChild(hDlg);
+		break;
+		
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case IDC_WIZARD_REFRESH:
+			hDevice = GetDlgItem(hDlg, IDC_WIZARD_DEVICE);
+			ComboBox_ResetContent(hDevice);
+			PopulateDeviceList(hDevice);
+			break;
+			
+		case IDC_WIZARD_BROWSE:
+			{
+				OPENFILENAME ofn = { 0 };
+				char filter[] = "ISO Files (*.iso)\0*.iso\0All Files (*.*)\0*.*\0";
+				ofn.lStructSize = sizeof(OPENFILENAME);
+				ofn.hwndOwner = hDlg;
+				ofn.lpstrFilter = filter;
+				ofn.lpstrFile = iso_path;
+				ofn.nMaxFile = sizeof(iso_path);
+				ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+				
+				if (GetOpenFileName(&ofn)) {
+					hIsoPath = GetDlgItem(hDlg, IDC_WIZARD_ISO_PATH);
+					SetDlgItemText(hDlg, IDC_WIZARD_ISO_PATH, iso_path);
+				}
+			}
+			break;
+			
+		case IDC_WIZARD_NEXT:
+			// Apply wizard settings to main dialog
+			hDevice = GetDlgItem(hDlg, IDC_WIZARD_DEVICE);
+			hFilesystem = GetDlgItem(hDlg, IDC_WIZARD_FILESYSTEM);
+			hTarget = GetDlgItem(hDlg, IDC_WIZARD_TARGET);
+			hIsoPath = GetDlgItem(hDlg, IDC_WIZARD_ISO_PATH);
+			
+			device_index = ComboBox_GetCurSel(hDevice);
+			fs_index = ComboBox_GetCurSel(hFilesystem);
+			target_index = ComboBox_GetCurSel(hTarget);
+			GetDlgItemText(hDlg, IDC_WIZARD_ISO_PATH, iso_path, sizeof(iso_path));
+			
+			// Apply settings to main dialog
+			if (device_index >= 0) {
+				ComboBox_SetCurSel(hDeviceList, device_index);
+			}
+			if (fs_index >= 0) {
+				ComboBox_SetCurSel(hFileSystem, fs_index);
+			}
+			if (target_index >= 0) {
+				ComboBox_SetCurSel(hTargetSystem, target_index);
+			}
+			if (strlen(iso_path) > 0) {
+				SetDlgItemText(hMainDialog, IDC_BOOT_SELECTION, iso_path);
+			}
+			
+			// Close wizard and start the process
+			EndDialog(hDlg, IDOK);
+			PostMessage(hMainDialog, WM_COMMAND, MAKEWPARAM(IDC_START, BN_CLICKED), 0);
+			break;
+			
+		case IDCANCEL:
+			reset_localization(IDD_WIZARD);
+			EndDialog(hDlg, IDCANCEL);
+			break;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
+}
+
+/*
+ * Presets dialog callback
+ */
+INT_PTR CALLBACK PresetsCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	HWND hList, hName;
+	char preset_name[256] = { 0 };
+	int selected_index;
+	
+	switch (message) {
+	case WM_INITDIALOG:
+		SetDarkModeForDlg(hDlg);
+		apply_localization(IDD_PRESETS, hDlg);
+		SetTitleBarIcon(hDlg);
+		CenterDialog(hDlg, NULL);
+		
+		// Initialize presets list
+		hList = GetDlgItem(hDlg, IDC_PRESETS_LIST);
+		// Add some sample presets
+		ListBox_AddString(hList, "Windows 10/11 - UEFI + NTFS");
+		ListBox_AddString(hList, "Linux Live - BIOS + FAT32");
+		ListBox_AddString(hList, "Windows 7 - BIOS + NTFS");
+		ListBox_AddString(hList, "macOS - UEFI + FAT32");
+		
+		SetDarkModeForChild(hDlg);
+		break;
+		
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case IDC_PRESETS_LOAD:
+			hList = GetDlgItem(hDlg, IDC_PRESETS_LIST);
+			selected_index = ListBox_GetCurSel(hList);
+			if (selected_index >= 0) {
+				// Load preset configuration
+				// This would load the actual preset settings
+				uprintf("Loading preset %d", selected_index);
+				EndDialog(hDlg, IDOK);
+			}
+			break;
+			
+		case IDC_PRESETS_DELETE:
+			hList = GetDlgItem(hDlg, IDC_PRESETS_LIST);
+			selected_index = ListBox_GetCurSel(hList);
+			if (selected_index >= 0) {
+				ListBox_DeleteString(hList, selected_index);
+			}
+			break;
+			
+		case IDC_PRESETS_SAVE_BTN:
+			hName = GetDlgItem(hDlg, IDC_PRESETS_NAME);
+			GetDlgItemText(hDlg, IDC_PRESETS_NAME, preset_name, sizeof(preset_name));
+			if (strlen(preset_name) > 0) {
+				hList = GetDlgItem(hDlg, IDC_PRESETS_LIST);
+				ListBox_AddString(hList, preset_name);
+				SetDlgItemText(hDlg, IDC_PRESETS_NAME, "");
+				uprintf("Saved preset: %s", preset_name);
+			}
+			break;
+			
+		case IDCANCEL:
+			reset_localization(IDD_PRESETS);
+			EndDialog(hDlg, IDCANCEL);
+			break;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
+}
+
+/*
+ * Progress detail dialog callback
+ */
+INT_PTR CALLBACK ProgressDetailCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message) {
+	case WM_INITDIALOG:
+		SetDarkModeForDlg(hDlg);
+		apply_localization(IDD_PROGRESS_DETAIL, hDlg);
+		SetTitleBarIcon(hDlg);
+		CenterDialog(hDlg, NULL);
+		
+		// Initialize progress display
+		SetDlgItemText(hDlg, IDC_PROGRESS_CURRENT, "Analyzing MBR...");
+		SetDlgItemText(hDlg, IDC_PROGRESS_PERCENT, "0% Complete");
+		SetDlgItemText(hDlg, IDC_PROGRESS_TIME, "Calculating...");
+		SetDlgItemText(hDlg, IDC_PROGRESS_SPEED, "0.0 MB/s");
+		SetDlgItemText(hDlg, IDC_PROGRESS_DATA, "0 MB / 0 MB");
+		
+		// Set up progress bar
+		SendDlgItemMessage(hDlg, IDC_PROGRESS_OVERALL, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
+		SendDlgItemMessage(hDlg, IDC_PROGRESS_OVERALL, PBM_SETPOS, 0, 0);
+		
+		SetDarkModeForChild(hDlg);
+		break;
+		
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case IDC_PROGRESS_HIDE:
+		case IDCANCEL:
+			reset_localization(IDD_PROGRESS_DETAIL);
+			EndDialog(hDlg, IDCANCEL);
+			break;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
+}
+
 INT_PTR CreateAboutBox(void)
 {
 	INT_PTR r;
 	dialog_showing++;
 	r = MyDialogBox(hMainInstance, IDD_ABOUTBOX, hMainDialog, AboutCallback);
+	dialog_showing--;
+	return r;
+}
+
+INT_PTR CreateWizardDialog(void)
+{
+	INT_PTR r;
+	dialog_showing++;
+	r = MyDialogBox(hMainInstance, IDD_WIZARD, hMainDialog, WizardCallback);
+	dialog_showing--;
+	return r;
+}
+
+INT_PTR CreatePresetsDialog(void)
+{
+	INT_PTR r;
+	dialog_showing++;
+	r = MyDialogBox(hMainInstance, IDD_PRESETS, hMainDialog, PresetsCallback);
+	dialog_showing--;
+	return r;
+}
+
+INT_PTR CreateProgressDetailDialog(void)
+{
+	INT_PTR r;
+	dialog_showing++;
+	r = MyDialogBox(hMainInstance, IDD_PROGRESS_DETAIL, hMainDialog, ProgressDetailCallback);
 	dialog_showing--;
 	return r;
 }

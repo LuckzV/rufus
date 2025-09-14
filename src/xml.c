@@ -67,6 +67,19 @@ struct ezxml_root {       // additional data for the root tag
 
 char *EZXML_NIL[] = { NULL }; // empty, null terminated array of strings
 
+// Safe multiplication to prevent integer overflow
+static inline int safe_multiply(unsigned int a, unsigned int b, unsigned int *result) {
+    if (a == 0 || b == 0) {
+        *result = 0;
+        return 1; // Success
+    }
+    if (a > UINT_MAX / b) {
+        return 0; // Overflow would occur
+    }
+    *result = a * b;
+    return 1; // Success
+}
+
 // what realloc should be doing all along
 static inline void* _realloc(void* ptr, unsigned int size) {
     void* old_ptr = ptr;
@@ -238,7 +251,15 @@ char *ezxml_decode(char *s, char **ent, char t)
             if (ent[b++]) { // found a match
                 if ((c = (long)strlen(ent[b])) - 1 > (e = strchr(s, ';')) - s) {
                     l = (d = (long)(s - r)) + c + (long)(e ? strlen(e) : 0); // new length
-                    r = (r == m) ? strcpy(malloc(l), r) : _realloc(r, l);
+                    if (r == m) {
+                        char *new_r = malloc(l);
+                        if (new_r == NULL) return NULL; // Handle malloc failure
+                        r = strncpy(new_r, r, l - 1);
+                        new_r[l - 1] = '\0'; // Ensure null termination
+                    } else {
+                        r = _realloc(r, l);
+                        if (r == NULL) return NULL; // Handle realloc failure
+                    }
                     e = strchr((s = r + d), ';'); // fix up pointers
                 }
                 if (!e) return r;
@@ -288,10 +309,16 @@ void ezxml_char_content(ezxml_root_t root, char *s, size_t len, char t)
 
     if (! *(xml->txt)) xml->txt = s; // initial character content
     else { // allocate our own memory and make a copy
-        xml->txt = (xml->flags & EZXML_TXTM) // allocate some space
-                   ? realloc(xml->txt, (l = strlen(xml->txt)) + len)
-                   : strcpy(malloc((l = strlen(xml->txt)) + len), xml->txt);
-        strcpy(xml->txt + l, s); // add new char content
+        if (xml->flags & EZXML_TXTM) {
+            xml->txt = realloc(xml->txt, (l = strlen(xml->txt)) + len);
+        } else {
+            char *new_txt = malloc((l = strlen(xml->txt)) + len);
+            if (new_txt == NULL) return; // Handle malloc failure
+            xml->txt = strncpy(new_txt, xml->txt, l);
+            xml->txt[l] = '\0'; // Ensure null termination
+        }
+        strncpy(xml->txt + l, s, len - 1); // add new char content
+        xml->txt[l + len - 1] = '\0'; // Ensure null termination
         if (s != m) free(s); // free s if it was malloced by ezxml_decode()
     }
 
@@ -341,19 +368,32 @@ void ezxml_proc_inst(ezxml_root_t root, char *s, size_t len)
         return;
     }
 
-    if (! root->pi[0]) *(root->pi = malloc(sizeof(char **))) = NULL; //first pi
+    if (! root->pi[0]) {
+        root->pi = malloc(sizeof(char **));
+        if (root->pi == NULL) return NULL; // Handle malloc failure
+        *root->pi = NULL; //first pi
+    }
 
     while (root->pi[i] && strcmp(target, root->pi[i][0])) i++; // find target
     if (! root->pi[i]) { // new target
-        root->pi = _realloc(root->pi, sizeof(char **) * (i + 2));
+        unsigned int alloc_size;
+        if (!safe_multiply(sizeof(char **), (i + 2), &alloc_size)) {
+            return NULL; // Integer overflow protection
+        }
+        root->pi = _realloc(root->pi, alloc_size);
         root->pi[i] = malloc(sizeof(char *) * 3);
+        if (root->pi[i] == NULL) return NULL; // Handle malloc failure
         root->pi[i][0] = target;
         root->pi[i][1] = (char *)(root->pi[i + 1] = NULL); // terminate pi list
         root->pi[i][2] = _strdup(""); // empty document position list
     }
 
     while (root->pi[i][j]) j++; // find end of instruction list for this target
-    root->pi[i] = _realloc(root->pi[i], sizeof(char *) * (j + 3));
+    unsigned int alloc_size;
+    if (!safe_multiply(sizeof(char *), (j + 3), &alloc_size)) {
+        return NULL; // Integer overflow protection
+    }
+    root->pi[i] = _realloc(root->pi[i], alloc_size);
     root->pi[i][j + 2] = _realloc(root->pi[i][j + 1], j + 1);
     strcpy(root->pi[i][j + 2] + j - 1, (root->xml.name) ? ">" : "<");
     root->pi[i][j + 1] = NULL; // null terminate pi list for this target
@@ -442,6 +482,7 @@ short ezxml_internal_dtd(ezxml_root_t root, char *s, size_t len)
                                        : _realloc(root->attr,
                                                  (i + 2) * sizeof(char **));
                     root->attr[i] = malloc(2 * sizeof(char *));
+                    if (root->attr[i] == NULL) return; // Handle malloc failure
                     root->attr[i][0] = t; // set tag name
                     root->attr[i][1] = (char *)(root->attr[i + 1] = NULL);
                 }
@@ -482,6 +523,7 @@ char *ezxml_str2utf8(char **s, size_t *len)
     if (be == -1) return NULL; // not UTF-16
 
     u = malloc(max);
+    if (u == NULL) return NULL; // Handle malloc failure
     for (sl = 2; sl < *len - 1; sl += 2) {
         c = (be) ? (((*s)[sl] & 0xFF) << 8) | ((*s)[sl + 1] & 0xFF)  //UTF-16BE
                  : (((*s)[sl + 1] & 0xFF) << 8) | ((*s)[sl] & 0xFF); //UTF-16LE
@@ -804,6 +846,7 @@ char *ezxml_toxml(ezxml_t xml)
     ezxml_root_t root = (ezxml_root_t)xml;
     size_t len = 0, max = EZXML_BUFSIZE;
     char *s = malloc(max), *t, *n;
+    if (s == NULL) return NULL; // Handle malloc failure
     int i, j, k;
 
     if (!s) return (NULL);
@@ -987,6 +1030,7 @@ ezxml_t ezxml_set_attr(ezxml_t xml, const char *name, const char *value)
         if (xml->attr == EZXML_NIL) { // first attribute
             if (l >= 1) return NULL;
             xml->attr = malloc(4 * sizeof(char *));
+            if (xml->attr == NULL) return NULL; // Handle malloc failure
             xml->attr[1] = _strdup(""); // empty list of malloced names/vals
         }
         else xml->attr = _realloc(xml->attr, (l + 4) * sizeof(char *));

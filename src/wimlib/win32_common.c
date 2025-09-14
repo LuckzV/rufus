@@ -340,6 +340,11 @@ realloc:
 	if (buf != _buf)
 		FREE(buf);
 	buflen *= 2;
+	// Prevent infinite loop with very large buffer sizes
+	if (buflen > 1024 * 1024) {  // 1MB limit
+		ERROR("Error message too large, truncating");
+		return;
+	}
 	buf = MALLOC(buflen * sizeof(buf[0]));
 	if (buf)
 		goto retry;

@@ -1,0 +1,10 @@
+[33m329e9705[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;33mtag: [m[1;33mv4.10_BETA[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m [wue] remove an unneeded condition
+[33m3619bad5[m [loc] update Korean translation
+[33m1740def7[m [wue] finally add a working WUE option for creating Windows CA 2023 compatible installation media
+[33m3ec2ac3a[m [vhd] fix no error being reported back when there's an issue with saving to VHD
+[33m10fc6727[m [ui] Use our own Dark Mode compatible Notification() instead of MessageBox()
+[33m7b8ddbe3[m [ui] improve notification dialog handling
+[33m99c04a9f[m [misc] fix various printf issues
+[33m8ec08c1f[m [ui ] fix broken dark mode on old Windows 10 builds
+[33m00f7bd19[m [vhd] return an error if there is not enough space on disk to save VHD/VHDX
+[33me43d6bbc[m [core] fix crash when trying to open a Windows ISO with a very long path
